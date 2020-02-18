@@ -1,0 +1,49 @@
+name: gomysql-playground
+
+type: go
+
+env:
+  SOURCE: playground_1
+  DESTINATION: playground_2
+
+packages: |
+  with import <nixpkgs> {};
+  let
+    go = go_1_13;
+  in buildEnv {
+    name = "project-environment";
+    paths = [
+      cacert
+      mysqlClient
+      nix
+      shellcheck
+      zsh
+    ];
+  }
+up:
+  - drydock:
+      services:
+      - mysql
+  - database:
+      bootstrap: |
+        mysql -h $MYSQL_HOST -P $MYSQL_PORT -u root -e "CREATE SCHEMA IF NOT EXISTS $SOURCE"
+        mysql -h $MYSQL_HOST -P $MYSQL_PORT -u root -e "CREATE SCHEMA IF NOT EXISTS $DESTINATION"
+      migrate: |
+        echo "no migrations"
+      host: 127.0.0.1
+      port: $MYSQL_PORT
+      database: $SOURCE
+
+# `dev run` runs `dev build` and then `dev run-built` if these are both defined.
+commands:
+  build:
+    run: go build -o gomysql-playground
+  run-built:
+    desc: |
+      Run the target after `dev build`.
+      `dev run` is a special command that will run `dev build` and then `dev run-built` if they are both defined.
+    run: ./gomysql-playground
+  test:
+    run: go test ./...
+  style:
+    run: 'golint ./... && errcheck ./...'
