@@ -1,0 +1,23 @@
+#+TITLE: Data validator tool in Go
+
+*** Ideas for a start
+- [ ] Connect to source, check if table exist, get its schema
+- [ ] Get the greatest primary key in a table
+#+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291
+
+#+end_src
+- [ ] Do the same for destination and compare result with the one from source
+- [ ] Get the checksum of a random row from source and compare it to destination
+*** Development
+- local env
+  - [ ] docker-compose
+  - [ ] mysql-client
+  - [ ] go
+- ci/cd
+  - [ ] travis
+*** Notes
+- Ghostferry is a great source of ideas
+- https://github.com/siddontang/go-mysql
+- https://github.com/go-sql-driver/mysql
+- https://www.percona.com/doc/percona-toolkit/3.0/pt-table-checksum.html
+
