@@ -37,12 +37,12 @@ up:
 # `dev run` runs `dev build` and then `dev run-built` if these are both defined.
 commands:
   build:
-    run: go build -o gomysql-playground
+    run: go build -o bin/gomysql-playground
   run-built:
     desc: |
       Run the target after `dev build`.
       `dev run` is a special command that will run `dev build` and then `dev run-built` if they are both defined.
-    run: ./gomysql-playground
+    run: ./bin/gomysql-playground validate
   test:
     run: go test ./...
   style:
