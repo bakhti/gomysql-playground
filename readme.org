@@ -1,5 +1,7 @@
 #+TITLE: Data validator tool in Go
-
+#+begin_quote
+this document is created using emacs/org-mode - all the code blocks can be executed directly from emacs (with some changes in headers)
+#+end_quote
 *** Prepare the database
 #+begin_src sh :dir ~/src/github.com/bakhti/gomysql-playground :results silent
 docker-compose up -d mysql-1 mysql-2
