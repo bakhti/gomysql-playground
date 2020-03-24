@@ -21,18 +21,11 @@ packages: |
     ];
   }
 up:
-  - drydock:
-      services:
-      - mysql
-  - database:
-      bootstrap: |
-        mysql -h $MYSQL_HOST -P $MYSQL_PORT -u root -e "CREATE SCHEMA IF NOT EXISTS $SOURCE"
-        mysql -h $MYSQL_HOST -P $MYSQL_PORT -u root -e "CREATE SCHEMA IF NOT EXISTS $DESTINATION"
-      migrate: |
-        echo "no migrations"
-      host: 127.0.0.1
-      port: $MYSQL_PORT
-      database: $SOURCE
+  - custom:
+      name: MySQL
+      met?: docker-compose up -d mysql-1 mysql-2
+      meet: echo 'mysql failed to start'; false
+      down: docker-compose stop mysql-1 mysql-2
 
 # `dev run` runs `dev build` and then `dev run-built` if these are both defined.
 commands:

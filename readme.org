@@ -1,0 +1,58 @@
+#+TITLE: Data validator tool in Go
+#+begin_quote
+this document is created using emacs/org-mode - all the code blocks can be executed directly from emacs (with some changes in headers)
+#+end_quote
+*** Prepare the database
+#+begin_src sh :dir ~/src/github.com/bakhti/gomysql-playground :results silent
+docker-compose up -d mysql-1 mysql-2
+#+end_src
+
+Create the database and two tables
+#+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291 :results silent
+CREATE DATABASE IF NOT EXISTS validator;
+CREATE TABLE validator.table1 (id bigint(20) AUTO_INCREMENT, data varchar(16), primary key(id));
+CREATE TABLE validator.table2 (id bigint(20) AUTO_INCREMENT, data TEXT, primary key(id));
+#+end_src
+
+Seed some random data
+#+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291 validator :results silent
+DROP procedure if exists doSeeding;
+delimiter //
+CREATE PROCEDURE doSeeding()
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  WHILE i <= 350 DO
+    INSERT INTO table1 (id, data) VALUES (i, LEFT(MD5(uuid()), 16));
+    INSERT INTO table2 (id, data) VALUES (i, LEFT(MD5(uuid()), 16));
+    SET i = i + 1;
+  END WHILE;
+END //
+delimiter ;
+call doSeeding;
+#+end_src
+
+*** Ideas for a start
+- [ ] Connect to source, check if table exist, get its schema
+- [ ] Get the greatest primary key in a table
+#+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291
+SELECT MAX(id) FROM validator.table1
+#+end_src
+- [ ] Do the same for destination and compare result with the one from source
+- [ ] Get the checksum of a random row from source and compare it to destination
+#+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291
+SELECT MD5(CONCAT(id, IFNULL(data, ''))) FROM validator.table1 WHERE id = 1
+#+end_src
+
+*** Development
+- local env
+  - [ ] docker-compose
+  - [ ] mysql-client
+  - [ ] go
+- ci/cd
+  - [ ] travis
+*** Notes
+- Ghostferry is a great source of ideas
+- https://github.com/siddontang/go-mysql
+- https://github.com/go-sql-driver/mysql
+- https://www.percona.com/doc/percona-toolkit/3.0/pt-table-checksum.html
+
