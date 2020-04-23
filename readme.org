@@ -32,7 +32,12 @@ call doSeeding;
 #+end_src
 
 *** Ideas for a start
-- [ ] Connect to source, check if table exist, get its schema
+- [X] Connect to source, check if table exist, get its schema
+[[https://pkg.go.dev/github.com/siddontang/go-mysql/schema][siddontag get struct]]
+#+begin_src go
+table, err := schema.NewTableFromSqlDB(db.DB, table.Schema(), table.String())
+#+end_src
+[[https://pkg.go.dev/reflect?tab=doc#pkg-examples][compare structs using reflect]]
 - [ ] Get the greatest primary key in a table
 #+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291
 SELECT MAX(id) FROM validator.table1

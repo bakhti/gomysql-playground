@@ -27,13 +27,13 @@ var validateCmd = &cobra.Command{
 	Short: "Validate data between databases and tables",
 	Long:  `This is an experiment where 2 databases will be compared.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log := logrus.New()
-		log.SetLevel(logrus.DebugLevel)
-		logger := logrus.NewEntry(log)
-		validator := validators.NewValidator(logger)
-		if err := validator.Run(); err != nil {
-			logger.WithError(err).Fatal("Could not validate data")
-		}
+		// log := logrus.New()
+		// log.SetLevel(logrus.DebugLevel)
+		// logger := logrus.NewEntry(log)
+		// validator := validators.NewValidator(logger)
+		// if err := validator.Run(); err != nil {
+		// 	logger.WithError(err).Fatal("Could not validate data")
+		// }
 	},
 }
 
