@@ -29,12 +29,11 @@ func (v *Validator) Validate() bool {
 }
 
 func (v *Validator) validateSchema() bool {
-	tblNames, err := showTablesFromSource()
+	tblNames, err := showTablesFromSource(v.sourceDB)
 	if err != nil {
 		v.logger.WithError(err).Error("failed to show tables")
 	}
 
-	var eq bool
 	for _, tbl := range tblNames {
 		sourceTable, err := schema.NewTableFromSqlDB(v.sourceDB, "validator", tbl)
 		if err != nil {
@@ -44,19 +43,51 @@ func (v *Validator) validateSchema() bool {
 		if err != nil {
 			v.logger.WithError(err).Error("couldn't read from target DB")
 		}
-		fmt.Println(sourceTable)
-		eq = reflect.DeepEqual(sourceTable, targetTable)
+		if !reflect.DeepEqual(sourceTable, targetTable) {
+			return false
+		}
 	}
-	return eq
+	return true
 }
 
-func showTablesFromSource() ([]string, error) {
-	s, err := sql.Open("mysql", "root:@tcp(127.0.0.1:29291)/validator")
+func (v *Validator) validateMaxPK() bool {
+	tblNames, err := showTablesFromSource(v.sourceDB)
 	if err != nil {
-		return []string{}, err
+		v.logger.WithError(err).Error("failed to show tables")
 	}
-	defer s.Close()
 
+	for _, tbl := range tblNames {
+		sm, err := maxPK(v.sourceDB, tbl)
+		if err != nil {
+			v.logger.WithError(err).Error("failed to query the source DB")
+		}
+
+		tm, err := maxPK(v.targetDB, tbl)
+		if err != nil {
+			v.logger.WithError(err).Error("failed to query the target DB")
+		}
+
+		if sm != tm {
+			return false
+		}
+	}
+	return true
+}
+
+func maxPK(d *sql.DB, t string) (float64, error) {
+	rows, err := d.Query(fmt.Sprintf("select max(id) from %s", t))
+	if err != nil {
+		return 0, err
+	} else {
+		var m float64
+		for rows.Next() {
+			rows.Scan(&m)
+		}
+		return m, nil
+	}
+}
+
+func showTablesFromSource(s *sql.DB) ([]string, error) {
 	rows, err := s.Query(fmt.Sprint("show tables"))
 	if err != nil {
 		return []string{}, err

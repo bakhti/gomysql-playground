@@ -16,8 +16,8 @@ limitations under the License.
 package cmd
 
 import (
-	"github.com/bakhti/gomysql-playground/pkg/validators"
-	"github.com/sirupsen/logrus"
+	_ "github.com/bakhti/gomysql-playground/pkg/validators"
+	_ "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
