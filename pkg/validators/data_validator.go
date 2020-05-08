@@ -25,66 +25,97 @@ func NewValidator(logger *logrus.Entry, sourceDB, targetDB *sql.DB) *Validator {
 }
 
 func (v *Validator) Validate() bool {
-	return v.validateSchema()
-}
-
-func (v *Validator) validateSchema() bool {
 	tblNames, err := showTablesFromSource(v.sourceDB)
 	if err != nil {
 		v.logger.WithError(err).Error("failed to show tables")
 	}
 
 	for _, tbl := range tblNames {
-		sourceTable, err := schema.NewTableFromSqlDB(v.sourceDB, "validator", tbl)
-		if err != nil {
-			v.logger.WithError(err).Error("couldn't read from source DB")
-		}
-		targetTable, err := schema.NewTableFromSqlDB(v.targetDB, "validator", tbl)
-		if err != nil {
-			v.logger.WithError(err).Error("couldn't read from target DB")
-		}
-		if !reflect.DeepEqual(sourceTable, targetTable) {
+		if !v.validateSchema(tbl) || !v.validateMaxPK(tbl) {
 			return false
 		}
 	}
 	return true
 }
 
-func (v *Validator) validateMaxPK() bool {
-	tblNames, err := showTablesFromSource(v.sourceDB)
+func (v *Validator) validateSchema(tbl string) bool {
+	sourceTable, err := schema.NewTableFromSqlDB(v.sourceDB, "validator", tbl)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to show tables")
+		v.logger.WithError(err).Error("couldn't read from source DB")
 	}
-
-	for _, tbl := range tblNames {
-		sm, err := maxPK(v.sourceDB, tbl)
-		if err != nil {
-			v.logger.WithError(err).Error("failed to query the source DB")
-		}
-
-		tm, err := maxPK(v.targetDB, tbl)
-		if err != nil {
-			v.logger.WithError(err).Error("failed to query the target DB")
-		}
-
-		if sm != tm {
-			return false
-		}
+	targetTable, err := schema.NewTableFromSqlDB(v.targetDB, "validator", tbl)
+	if err != nil {
+		v.logger.WithError(err).Error("couldn't read from target DB")
+	}
+	if !reflect.DeepEqual(sourceTable, targetTable) {
+		return false
 	}
 	return true
 }
 
-func maxPK(d *sql.DB, t string) (float64, error) {
-	rows, err := d.Query(fmt.Sprintf("select max(id) from %s", t))
+func (v *Validator) validateMaxPK(tbl string) bool {
+	sm, err := maxPK(v.sourceDB, tbl)
 	if err != nil {
+		v.logger.WithError(err).Error("failed to query the source DB")
+	}
+
+	tm, err := maxPK(v.targetDB, tbl)
+	if err != nil {
+		v.logger.WithError(err).Error("failed to query the target DB")
+	}
+
+	if sm != tm {
+		return false
+	}
+	return true
+}
+
+func (v *Validator) validateSingleRow(tbl string) bool {
+	id, scs, err := getCheckSumRand(v.sourceDB, tbl)
+	if err != nil {
+		v.logger.WithError(err).Error("failed to query the source DB")
+	}
+	tcs, err := getCheckSum(v.targetDB, tbl, id)
+	if err != nil {
+		v.logger.WithError(err).Error("failed to query the target DB")
+	}
+
+	if scs != tcs {
+		return false
+	}
+	return true
+}
+
+func getCheckSum(db *sql.DB, tbl string, id float64) (string, error) {
+	query := fmt.Sprintf("SELECT MD5(CONCAT(id, IFNULL(data, ''))) FROM %s WHERE id = %f", tbl, id)
+	var cs string
+
+	if err := db.QueryRow(query).Scan(&cs); err != nil {
+		return "", err
+	}
+	return cs, nil
+}
+
+func getCheckSumRand(db *sql.DB, tbl string) (float64, string, error) {
+	t1 := fmt.Sprintf("SELECT t1.id, MD5(CONCAT(t1.id, IFNULL(t1.data, ''))) FROM %s AS t1", tbl)
+	t2 := fmt.Sprintf("JOIN (SELECT CEIL(RAND() * (SELECT MAX(id) FROM %s)) AS id) AS t2", tbl)
+	query := fmt.Sprintf("%s %s WHERE t1.id >= t2.id ORDER BY t1.id ASC LIMIT 1", t1, t2)
+
+	var id float64
+	var cs string
+	if err := db.QueryRow(query).Scan(&id, &cs); err != nil {
+		return 0, "", err
+	}
+	return id, cs, nil
+}
+
+func maxPK(db *sql.DB, tbl string) (float64, error) {
+	query := fmt.Sprintf("select max(id) from %s", tbl)
+	var m float64
+	if err := db.QueryRow(query).Scan(&m); err != nil {
 		return 0, err
-	} else {
-		var m float64
-		for rows.Next() {
-			rows.Scan(&m)
-		}
-		return m, nil
 	}
+	return m, nil
 }
 
 func showTablesFromSource(s *sql.DB) ([]string, error) {
