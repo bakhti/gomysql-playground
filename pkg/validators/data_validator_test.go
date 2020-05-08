@@ -8,48 +8,58 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func TestMaxKeyValidator(t *testing.T) {
-	sourceDB, err := sql.Open("mysql", "root:@tcp(127.0.0.1:29291)/validator")
+func TestSchemeValidator(t *testing.T) {
+	validator, err := activateValidator()
 	if err != nil {
 		t.Error(err)
 	}
-	defer sourceDB.Close()
+	defer validator.sourceDB.Close()
+	defer validator.targetDB.Close()
 
-	targetDB, err := sql.Open("mysql", "root:@tcp(127.0.0.1:29292)/validator")
-	if err != nil {
-		t.Error(err)
-	}
-	defer targetDB.Close()
-
-	log := logrus.New()
-	logger := logrus.NewEntry(log)
-
-	validator := NewValidator(logger, sourceDB, targetDB)
-	isValid := validator.validateMaxPK()
-	if isValid != true {
-		t.Errorf("max PK of one of the tables doesn't match to the one in target")
+	if isValid := validator.validateSchema("table1"); !isValid {
+		t.Errorf("this table schema is expected to match")
 	}
 }
 
-func TestSchemeValidator(t *testing.T) {
-	sourceDB, err := sql.Open("mysql", "root:@tcp(127.0.0.1:29291)/validator")
+func TestMaxKeyValidator(t *testing.T) {
+	validator, err := activateValidator()
 	if err != nil {
 		t.Error(err)
 	}
-	defer sourceDB.Close()
+	defer validator.sourceDB.Close()
+	defer validator.targetDB.Close()
+
+	if isValid := validator.validateMaxPK("table1"); !isValid {
+		t.Errorf("max PK of this table is expected to match")
+	}
+}
+
+func TestSingleRowValidator(t *testing.T) {
+	validator, err := activateValidator()
+	if err != nil {
+		t.Error(err)
+	}
+	defer validator.sourceDB.Close()
+	defer validator.targetDB.Close()
+
+	if isValid := validator.validateSingleRow("table1"); !isValid {
+		t.Errorf("all the rows of this table are expected to match")
+	}
+}
+
+func activateValidator() (*Validator, error) {
+	sourceDB, err := sql.Open("mysql", "root:@tcp(127.0.0.1:29291)/validator")
+	if err != nil {
+		return nil, err
+	}
 
 	targetDB, err := sql.Open("mysql", "root:@tcp(127.0.0.1:29292)/validator")
 	if err != nil {
-		t.Error(err)
+		return nil, err
 	}
-	defer targetDB.Close()
 
 	log := logrus.New()
 	logger := logrus.NewEntry(log)
 
-	validator := NewValidator(logger, sourceDB, targetDB)
-	isValid := validator.validateSchema()
-	if isValid != true {
-		t.Errorf("one of the tables schema in source doesn't match to the one in target")
-	}
+	return NewValidator(logger, sourceDB, targetDB), nil
 }
