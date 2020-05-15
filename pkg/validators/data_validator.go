@@ -34,18 +34,24 @@ func (v *Validator) Validate() bool {
 		if !v.validateSchema(tbl) || !v.validateMaxPK(tbl) {
 			return false
 		}
+		if !v.validateSingleRow(tbl) {
+			return false
+		}
 	}
 	return true
 }
 
+// validateSchema matches the schema of the given table from source DB
+// against the one in target DB
+// TODO: the database name is hardcoded
 func (v *Validator) validateSchema(tbl string) bool {
 	sourceTable, err := schema.NewTableFromSqlDB(v.sourceDB, "validator", tbl)
 	if err != nil {
-		v.logger.WithError(err).Error("couldn't read from source DB")
+		v.logger.WithError(err).Error("couldn't get schema from source DB")
 	}
 	targetTable, err := schema.NewTableFromSqlDB(v.targetDB, "validator", tbl)
 	if err != nil {
-		v.logger.WithError(err).Error("couldn't read from target DB")
+		v.logger.WithError(err).Error("couldn't get schema from target DB")
 	}
 	if !reflect.DeepEqual(sourceTable, targetTable) {
 		return false
@@ -53,15 +59,17 @@ func (v *Validator) validateSchema(tbl string) bool {
 	return true
 }
 
+// validateMaxPK validates if the max PK of the given table from the source DB
+// matches the one from target DB
 func (v *Validator) validateMaxPK(tbl string) bool {
 	sm, err := maxPK(v.sourceDB, tbl)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to query the source DB")
+		v.logger.WithError(err).Error("failed to get max PK from source DB")
 	}
 
 	tm, err := maxPK(v.targetDB, tbl)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to query the target DB")
+		v.logger.WithError(err).Error("failed to get max PK from target DB")
 	}
 
 	if sm != tm {
@@ -70,14 +78,16 @@ func (v *Validator) validateMaxPK(tbl string) bool {
 	return true
 }
 
+// validateSingleRow validates if a random row in the given table from the source DB
+// matches the same row in the target DB
 func (v *Validator) validateSingleRow(tbl string) bool {
 	id, scs, err := getCheckSumRand(v.sourceDB, tbl)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to query the source DB")
+		v.logger.WithError(err).Error("failed to get checksum of a random row from source DB")
 	}
 	tcs, err := getCheckSum(v.targetDB, tbl, id)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to query the target DB")
+		v.logger.WithError(err).Error("failed to get checksum of a row from target DB")
 	}
 
 	if scs != tcs {
@@ -86,7 +96,10 @@ func (v *Validator) validateSingleRow(tbl string) bool {
 	return true
 }
 
+// getCheckSum receives DB handle, table name and row id, returns a checksum of that row
+// TODO: should not be bound to id column
 func getCheckSum(db *sql.DB, tbl string, id float64) (string, error) {
+	// TODO: make it recognise columns
 	query := fmt.Sprintf("SELECT MD5(CONCAT(id, IFNULL(data, ''))) FROM %s WHERE id = %f", tbl, id)
 	var cs string
 
@@ -96,6 +109,7 @@ func getCheckSum(db *sql.DB, tbl string, id float64) (string, error) {
 	return cs, nil
 }
 
+// getCheckSumRand receives DB handle and table name, returns an ID and a checksum of a random row
 func getCheckSumRand(db *sql.DB, tbl string) (float64, string, error) {
 	t1 := fmt.Sprintf("SELECT t1.id, MD5(CONCAT(t1.id, IFNULL(t1.data, ''))) FROM %s AS t1", tbl)
 	t2 := fmt.Sprintf("JOIN (SELECT CEIL(RAND() * (SELECT MAX(id) FROM %s)) AS id) AS t2", tbl)
@@ -109,7 +123,9 @@ func getCheckSumRand(db *sql.DB, tbl string) (float64, string, error) {
 	return id, cs, nil
 }
 
+// maxPK receives database handle and table name, returns max value of PK
 func maxPK(db *sql.DB, tbl string) (float64, error) {
+	// TODO: make it recognise what column is PK and act properly when there is no PK
 	query := fmt.Sprintf("select max(id) from %s", tbl)
 	var m float64
 	if err := db.QueryRow(query).Scan(&m); err != nil {
@@ -118,6 +134,7 @@ func maxPK(db *sql.DB, tbl string) (float64, error) {
 	return m, nil
 }
 
+// showTablesFromSource receives source DB handle, returns list of tables in that DB
 func showTablesFromSource(s *sql.DB) ([]string, error) {
 	rows, err := s.Query(fmt.Sprint("show tables"))
 	if err != nil {

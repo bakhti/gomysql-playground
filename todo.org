@@ -1,0 +1,121 @@
+#+TITLE: TODO
+
+- [-] check tests in ghostferry (local functions?)
+- [X] change the current test to test only schema validation
+- [X] add test for the max PK comparison
+- [X] make the test to pass
+- [ ] optimise the currently available tests
+- [X] refactor maxPK validator for it to work on a single table
+- [X] add test to compare a single random record
+- [X] implement the func
+- [X] run several validators in parallel
+- [ ] compare the whole range splitting it into chanks of 200 rows if the range is bigger
+- [ ] benchmarking
+- [ ] compare multiple records
+- [ ] skip the table if it's empty
+- [ ] allow usage of different checksum algorithms
+- [ ] mock database for testing
+- [ ] treat the table as a whole chunk if it has no PK
+- [ ] get the connection from config file, flag or env variable
+
+* try to understand
+#+begin_quote
+Daniel Oliveira
+4:22 super relevant to our projects
+4:22 https://github.com/DATA-DOG/go-sqlmock
+4:22 I will try that now
+4:34 you can write tests for your entire project without a real DB running
+4:36 I have this struct
+#+end_quote
+
+#+begin_src go
+type DataWriter struct {
+	logger      *logrus.Entry
+	DB          *sql.DB
+	StmtStore   map[string]*sql.Stmt
+	TableSchema *database.TableSchema
+}
+#+end_src
+
+#+begin_quote
+4:36 it implements this interface
+#+end_quote
+
+#+begin_src go
+type Writer interface {
+	Write(item interface{}) error
+	WriteBulk(items []interface{}) error
+}
+#+end_src
+
+#+begin_quote
+4:36 and the WriteBulk method will insert data into a table
+4:37 but I just want to test the business logic for that operation
+#+end_quote
+
+#+title: DataWriter 
+#+begin_src go
+func (w *DataWriter) WriteBulk(items []interface{}) error {
+	err := WithRetriesContext(context.Background(), w.logger, 500, time.Minute, "write bulk", func() error {
+		startTime := time.Now()
+		rowBatch := database.RowBatch{}
+		for _, r := range items {
+			rowBatch.Values = append(rowBatch.Values, r.(database.RowData))
+		}
+​
+		query, args, err := rowBatch.AsSQLQuery(w.TableSchema.Schema, w.TableSchema.Name, w.TableSchema.Columns)
+		if err != nil {
+			w.logger.WithError(err).Error("error writing bulk")
+			return err
+		}
+​
+		if _, ok := w.StmtStore[query]; !ok {
+​
+			w.StmtStore[query], err = w.DB.Prepare(query)
+			if err != nil {
+				w.logger.WithError(err).Error("error preparing query")
+				return err
+			}
+		}
+​
+		tx, err := w.DB.Begin()
+		if err != nil {
+			w.logger.WithError(err).Error("error creating transaction")
+			return err
+		}
+​
+		_, err = tx.Stmt(w.StmtStore[query]).Exec(args...)
+		if err != nil {
+			tx.Rollback()
+			w.logger.WithError(err).Error("error executing query")
+			return err
+		}
+​
+		err = tx.Commit()
+		if err != nil {
+			tx.Rollback()
+			w.logger.WithError(err).Error("error committing transaction")
+			return err
+		}
+​
+		w.logger.WithFields(logrus.Fields{
+			"elapsed":      time.Since(startTime).String(),
+			"dbStats":      w.DB.Stats(),
+			"totalRecords": len(rowBatch.Values),
+			"method":       "bulk",
+		}).Debugf("bulk writing completed for table %s", w.TableSchema.Name)
+		return nil
+	})
+​
+	return err
+}
+#+end_src
+
+#+begin_quote
+4:38 as you can see the method just uses a *sql.DB connection
+4:38 and expects for some return
+4:39 I will test it and let you know
+4:39 another advantage is that you don’t have to reset DB or delete insert data
+#+end_quote
+
+

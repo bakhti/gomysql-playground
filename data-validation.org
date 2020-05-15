@@ -1,0 +1,51 @@
+#+TITLE: Presentation: Data Validation
+#+AUTHOR: Bakhtiyor Aripov
+#+EMAIL: bakhtiyor.aripov@shopify.com
+
+* What do we want
+** gain some level of trust to the migrated data
+[[https://shopify.github.io/ghostferry/master/copydbinprod.html#to-verify-or-not-to-verify][To Verify Or Not To Verify]]:
+#+begin_quote
+it may no longer be necessary to run a verification during the production move
+#+end_quote
+
+** we need it to be fast
+** if it's not fast, we still need it, so it would be nice to know that at least some random part of it is consistent
+
+* The standard solution is =pt-table-checksum=, but
+
+1. many tools of Percona Toolkit are authored to assume you have SUPER-level access on all nodes
+2. single threaded process
+
+*Note*:
+we can limit to a single table using =--tables= flag, and =--where= can be used to limit one process to a part of table, but
+- manually define the borders
+- manually manage multiple processes
+
+* On the other hand
+
+1. it's promised to be super performant
+
+#+CAPTION: Documentation
+#+begin_quote
+We have used it on servers with hundreds of thousands of databases and tables, and trillions of rows.
+No matter how large the server is, pt-table-checksum works equally well.
+#+end_quote
+
+*Note*:
+=pt-table-checksum= requests mysql to do the checksum, any algorithm available is possible - md5, sha1, crc32 (default).
+there is also Percona Toolkit UDF, which is said to be faster than md5.
+* What do I want to implement
+
+1. validate ranges of table in parallel
+2. being able to validate only some part of table
+3. no messing arround with replication (assuming that we are ready to switch the app to the target DB and the source is in read-only mode)
+
+* How fast is =pt-table-checksum=
+
+- here should be a demonstration of the tool running against some real database (STS?)
+
+* How fast is the prototype
+
+- same for my tool
+

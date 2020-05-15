@@ -38,14 +38,21 @@ call doSeeding;
 table, err := schema.NewTableFromSqlDB(db.DB, table.Schema(), table.String())
 #+end_src
 [[https://pkg.go.dev/reflect?tab=doc#pkg-examples][compare structs using reflect]]
-- [ ] Get the greatest primary key in a table
+- [X] Get the greatest primary key in a table
 #+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291
 SELECT MAX(id) FROM validator.table1
 #+end_src
-- [ ] Do the same for destination and compare result with the one from source
+- [X] Do the same for destination and compare result with the one from source
 - [ ] Get the checksum of a random row from source and compare it to destination
 #+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29291
-SELECT MD5(CONCAT(id, IFNULL(data, ''))) FROM validator.table1 WHERE id = 1
+SELECT t1.id, MD5(CONCAT(t1.id, IFNULL(t1.data, ''))) FROM validator.table1 AS t1
+  JOIN (SELECT CEIL(RAND() * (SELECT MAX(id) FROM validator.table1)) AS id) AS t2
+  WHERE t1.id >= t2.id ORDER BY t1.id ASC LIMIT 1
+#+end_src
+
+[[http://jan.kneschke.de/projects/mysql/order-by-rand/][order by rand()]]
+#+begin_src sql :engine mysql :cmdline --protocol=tcp -u root -h 127.0.0.1 -P 29292
+SELECT MD5(CONCAT(id, IFNULL(data, ''))) FROM validator.table1 WHERE id = 20
 #+end_src
 
 *** Development
@@ -56,8 +63,28 @@ SELECT MD5(CONCAT(id, IFNULL(data, ''))) FROM validator.table1 WHERE id = 1
 - ci/cd
   - [ ] travis
 *** Notes
-- Ghostferry is a great source of ideas
-- https://github.com/siddontang/go-mysql
-- https://github.com/go-sql-driver/mysql
-- https://www.percona.com/doc/percona-toolkit/3.0/pt-table-checksum.html
+**** What's wrong with pt-table-checksum? (nothing)
+***** it needs SUPER
+***** single process
+we can limit to a single table using =--tables= flag and =--where= can be used to limit one process to a part of table, but
+- manually define the borders
+- manually manage multiple processes
+***** try it out
+#+begin_src sh
+dev clone shopify-docker-images
+cd percona-toolkit
+docker build -t $(cat NAME):$(cat VERSION) .
+docker run --rm -it $(cat NAME):$(cat VERSION) pt-table-checksum --help
+#+end_src
+
+**** Useful links
+ - Ghostferry is a great source of ideas
+ - https://github.com/siddontang/go-mysql
+ - https://github.com/go-sql-driver/mysql
+ - https://www.percona.com/doc/percona-toolkit/3.0/pt-table-checksum.html
+ - https://www.percona.com/blog/2014/07/28/what-i-learned-while-migrating-a-customer-mysql-installation-to-amazon-rds/
+ - https://www.percona.com/blog/2018/04/06/how-to-handle-pt-table-checksum-errors/
+ - https://www.percona.com/blog/2018/11/22/caveats-pt-table-checksum-using-row-based-replication-and-filters/
+ - https://github.com/datacharmer/test_db
+ - https://stackoverflow.com/a/12681853
 
